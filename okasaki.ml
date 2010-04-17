@@ -98,19 +98,5 @@ struct
   
   let delete_min = function
     | E -> raise Empty
-    | T (_,x,lh,rh) -> merge lh rh
-  
+    | T (_,x,lh,rh) -> merge lh rh  
 end
-
-module IntUnbalancedSet = UnbalancedSet(Integer)
-
-open IntUnbalancedSet
-
-let main () =
-  let root = insert 5 (insert 10 (insert 0 (insert 1 empty))) in
-  let elts = members root in
-  let str = String.concat "," (List.map string_of_int elts) in
-  Printf.printf "%s\n" str
-  
-;;
-main ()
