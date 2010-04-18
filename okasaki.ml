@@ -1,6 +1,7 @@
 exception Empty
 exception Not_found
 exception Undefined
+exception Inconsistent_state
 
 module type ORDERED =
 sig
@@ -20,18 +21,18 @@ end
 
 module type SET =
 sig
-  type elem
+  type t
   type set
   val empty : set
-  val insert : elem -> set -> set
-  val member : elem -> set -> bool
-  val members : set -> elem list
+  val insert : t -> set -> set
+  val member : t -> set -> bool
+  val members : set -> t list
 end
 
 module UnbalancedSet = functor (Elem : ORDERED)-> 
 struct
-  type elem = Elem.t
-  type tree = E | T of tree * elem * tree
+  type t = Elem.t
+  type tree = E | T of tree * t * tree
   type set = tree
   
   let empty = E
@@ -45,8 +46,8 @@ struct
     | E -> false
     | T (a,y,b) ->
       if (Elem.lt x y) then member x a 
-      else if (Elem.eq x y) then true
-      else member x b
+      else if (Elem.lt y x) then member x b
+      else true
     
   (* insert: O(d) *)
   let rec insert x = function
@@ -161,4 +162,43 @@ struct
   let delete_min ts = 
     let (Node (_,x,ts1),ts2) = remove_min_tree ts in
     merge (List.rev ts1) ts2
+end
+
+module RedBlackSet = functor (Elem : ORDERED)-> 
+struct
+  type t = Elem.t
+  type color = R | B
+  type tree = E | T of color * tree * t * tree
+  type set = tree
+  
+  let empty = E
+
+  let rec member x = function
+    | E -> false
+    | T (_,a,y,b) ->
+      if (Elem.lt x y) then member x a 
+      else if (Elem.eq x y) then member x b
+      else true
+
+  let balance = function
+    | (B,T (R,T (R,a,x,b),y,c),z,d) -> T (R,T (B,a,x,b),y,T (B,c,z,d))
+    | (B,T (R,a,x,T (R,b,y,c)),z,d) -> T (R,T (B,a,x,b),y,T (B,c,z,d))
+    | (B,a,x,T (R,T (R,b,y,c),z,d)) -> T (R,T (B,a,x,b),y,T (B,c,z,d))
+    | (B,a,x,T (R,b,y,T (R,c,z,d))) -> T (R,T (B,a,x,b),y,T (B,c,z,d))
+    | (c,a,x,b) -> T (c,a,x,b)
+
+  let rec insert' x = function
+    | E -> T (R,E,x,E)
+    | T (c,a,y,b) as s -> 
+      if Elem.lt x y then balance (c,insert' x a,y,b)
+      else if Elem.lt y x then balance (c,a,y,insert' x b)
+      else s
+
+  let insert x s = match insert' x s with 
+    | T (_,a,y,b) -> T (B,a,y,b)
+    | E -> raise Inconsistent_state
+
+  let rec members = function
+    | E -> []
+    | T (_,a,x,b) -> (members a) @ [x] @ (members b)
 end
